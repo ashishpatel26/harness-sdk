@@ -1073,7 +1073,12 @@ class Agent(AgentBase, LocalAgent):
                         f"gen_ai.{message['role']}.message",
                         attributes={"role": message["role"], "content": serialize(message["content"])},
                     )
-                events = self.model.structured_output(output_model, temp_messages, system_prompt=self.system_prompt)
+                events = self.model.structured_output(
+                    output_model,
+                    temp_messages,
+                    system_prompt=self.system_prompt,
+                    system_prompt_content=self.system_prompt_content,
+                )
                 async for event in events:
                     if isinstance(event, TypedEvent):
                         event.prepare(invocation_state={})

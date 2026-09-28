@@ -1042,7 +1042,10 @@ def test_agent_structured_output(agent, system_prompt, user, agenerator):
 
     # Verify the model was called with temporary messages array
     agent.model.structured_output.assert_called_once_with(
-        type(user), [{"role": "user", "content": [{"text": prompt}]}], system_prompt=system_prompt
+        type(user),
+        [{"role": "user", "content": [{"text": prompt}]}],
+        system_prompt=system_prompt,
+        system_prompt_content=agent.system_prompt_content,
     )
 
     mock_span.set_attributes.assert_called_once_with(
@@ -1107,7 +1110,10 @@ def test_agent_structured_output_multi_modal_input(agent, system_prompt, user, a
 
     # Verify the model was called with temporary messages array
     agent.model.structured_output.assert_called_once_with(
-        type(user), [{"role": "user", "content": prompt}], system_prompt=system_prompt
+        type(user),
+        [{"role": "user", "content": prompt}],
+        system_prompt=system_prompt,
+        system_prompt_content=agent.system_prompt_content,
     )
 
     mock_span.add_event.assert_called_with(
@@ -1155,7 +1161,9 @@ def test_agent_structured_output_without_prompt(agent, system_prompt, user, agen
     assert agent.messages == existing_messages
 
     # Verify the model was called with existing messages only
-    agent.model.structured_output.assert_called_once_with(type(user), existing_messages, system_prompt=system_prompt)
+    agent.model.structured_output.assert_called_once_with(
+        type(user), existing_messages, system_prompt=system_prompt, system_prompt_content=agent.system_prompt_content
+    )
 
 
 @pytest.mark.asyncio
@@ -1176,8 +1184,27 @@ async def test_agent_structured_output_async(agent, system_prompt, user, agenera
 
     # Verify the model was called with temporary messages array
     agent.model.structured_output.assert_called_once_with(
-        type(user), [{"role": "user", "content": [{"text": prompt}]}], system_prompt=system_prompt
+        type(user),
+        [{"role": "user", "content": [{"text": prompt}]}],
+        system_prompt=system_prompt,
+        system_prompt_content=agent.system_prompt_content,
     )
+
+
+@pytest.mark.asyncio
+async def test_agent_structured_output_async_forwards_non_text_system_prompt_blocks(user, agenerator):
+    """Regression test for #3496: non-text system prompt blocks (e.g. cachePoint) must reach the model."""
+    system_prompt_content = [
+        {"text": "You are a helpful assistant."},
+        {"cachePoint": {"type": "default"}},
+    ]
+    agent = Agent(system_prompt=system_prompt_content)
+    agent.model.structured_output = unittest.mock.Mock(return_value=agenerator([{"output": user}]))
+
+    await agent.structured_output_async(type(user), "Jane Doe is 30 years old and her email is jane@doe.com")
+
+    _, kwargs = agent.model.structured_output.call_args
+    assert kwargs["system_prompt_content"] == system_prompt_content
 
 
 @pytest.mark.asyncio
