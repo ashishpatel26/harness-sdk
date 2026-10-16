@@ -301,6 +301,10 @@ describe('resolveModel', () => {
     'global.anthropic.claude-opus-4-8',
     'global.anthropic.claude-opus-5',
     'global.anthropic.claude-sonnet-5',
+    'global.anthropic.claude-haiku-5-5',
+    'au.anthropic.claude-haiku-5-5',
+    'anthropic.claude-haiku-5-5',
+    'global.anthropic.claude-haiku-6',
     'global.anthropic.claude-fable-5',
     'global.anthropic.claude-fable-5-1',
     'anthropic.claude-mythos-preview',
@@ -339,18 +343,16 @@ describe('resolveModel', () => {
     ['claude-opus-4.5', 64_000],
     ['claude-opus-4-8', 128_000],
     ['claude-opus-5', 128_000],
+    ['claude-haiku-4-5-20251001-v1:0', 64_000],
+    ['claude-haiku-4.5', 64_000],
+    ['claude-haiku-5-5', 128_000],
   ] as const)('gives %s a max tokens ceiling of %d', async (modelId, maxTokens) => {
     const model = await resolve(`bedrock/global.anthropic.${modelId}`)
     expect(model.getConfig().maxTokens).toBe(maxTokens)
   })
 
-  it.each(['claude-haiku-latest', 'claude-haiku'])('falls open to extended, not adaptive, for %s', async (modelId) => {
-    const model = await resolve(`bedrock/global.anthropic.${modelId}`)
-    expect(model.getConfig().additionalRequestFields).toEqual(EXTENDED)
-  })
-
-  it('clamps the budget below a small max tokens', async () => {
-    const model = await resolve('anthropic/claude-haiku', 'max')
+  it('clamps a version-led id against the anthropic-direct fallback', async () => {
+    const model = await resolve('anthropic/claude-4-5-haiku', 'max')
     expect(model.getConfig().maxTokens).toBe(32_000)
     expect(model.getConfig().params).toEqual({ thinking: { type: 'enabled', budget_tokens: 31_999 } })
   })
@@ -468,12 +470,24 @@ describe('resolveModel', () => {
     expect(model.getConfig().builtInTools).toBeUndefined()
   })
 
+  it('adds the anthropic web_search server tool as a direct call', async () => {
+    const model = await resolve('anthropic/claude-opus-4-8', 'high', true)
+    expect(model.getConfig().anthropicTools).toEqual([
+      { type: 'web_search_20260318', name: 'web_search', allowed_callers: ['direct'] },
+    ])
+    expect(model.getConfig().params).toHaveProperty('thinking')
+  })
+
+  it('omits anthropic server tools when web_search is off', async () => {
+    const model = await resolve('anthropic/claude-opus-4-8', 'high', false)
+    expect(model.getConfig()).not.toHaveProperty('anthropicTools')
+  })
+
   it('never adds a native search tool where the model has none', async () => {
     // The factory only passes web_search for models that have it; the builders never add the tool elsewhere.
     for (const id of ['bedrock-mantle/qwen.qwen3-32b-v1:0', 'bedrock-mantle/openai.gpt-oss-120b-1:0']) {
       expect((await resolve(id, 'high', true)).getConfig().params).not.toHaveProperty('tools')
     }
-    expect((await resolve('anthropic/claude-opus-4-8', 'high', true)).getConfig()).not.toHaveProperty('anthropicTools')
   })
 
   it('warns instead of throwing when an effort level is requested on a Model instance', async () => {
@@ -643,7 +657,7 @@ describe('supportsThinking', () => {
     expect(supportsThinking(`bedrock/global.anthropic.${modelId}`)).toBe(thinks)
   })
 
-  it.each(['claude-opus-latest', 'claude-sonnet-latest', 'claude-opus-100'])(
+  it.each(['claude-opus-latest', 'claude-sonnet-latest', 'claude-haiku-latest', 'claude-haiku', 'claude-opus-100'])(
     'fails open to adaptive for %s, whose version does not parse',
     async (modelId) => {
       expect(supportsThinking(`bedrock/global.anthropic.${modelId}`)).toBe(true)
@@ -670,9 +684,9 @@ describe('supportsWebSearch', () => {
     expect(supportsWebSearch('bedrock-mantle/qwen.qwen3-32b-v1:0')).toBe(false)
   })
 
-  it('is false for bedrock and anthropic', () => {
+  it('is false for bedrock but true for anthropic direct', () => {
     expect(supportsWebSearch('bedrock/global.anthropic.claude-opus-4-8')).toBe(false)
-    expect(supportsWebSearch('anthropic/claude-opus-4-8')).toBe(false)
+    expect(supportsWebSearch('anthropic/claude-opus-4-8')).toBe(true)
   })
 
   it('uses the default model provider for undefined', () => {

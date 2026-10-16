@@ -404,14 +404,13 @@ class OpenAIModel(Model):
         """
         formatted_messages = []
 
+        if any("reasoningContent" in content for message in messages for content in message["content"]):
+            logger.warning(
+                "reasoningContent is not supported in multi-turn conversations with the Chat Completions API."
+            )
+
         for message in messages:
             contents = message["content"]
-
-            # Check for reasoningContent and warn user
-            if any("reasoningContent" in content for content in contents):
-                logger.warning(
-                    "reasoningContent is not supported in multi-turn conversations with the Chat Completions API."
-                )
 
             # Filter out content blocks that shouldn't be formatted
             filtered_contents = []
@@ -436,13 +435,6 @@ class OpenAIModel(Model):
                 if "toolResult" in content
             ]
 
-            formatted_message = {
-                "role": message["role"],
-                **({"content": formatted_contents} if formatted_contents else {}),
-                **({"tool_calls": formatted_tool_calls} if formatted_tool_calls else {}),
-            }
-            formatted_messages.append(formatted_message)
-
             # Process tool messages to extract images into separate user messages
             # OpenAI API requires images to be in user role messages only
             # All tool messages must be grouped together before any user messages with images
@@ -453,6 +445,14 @@ class OpenAIModel(Model):
                 if user_msg_with_images:
                     user_messages_with_images.append(user_msg_with_images)
             formatted_messages.extend(user_messages_with_images)
+
+            # Tool results must immediately follow tool calls, before any injected user text.
+            formatted_message = {
+                "role": message["role"],
+                **({"content": formatted_contents} if formatted_contents else {}),
+                **({"tool_calls": formatted_tool_calls} if formatted_tool_calls else {}),
+            }
+            formatted_messages.append(formatted_message)
 
         return formatted_messages
 
@@ -595,6 +595,8 @@ class OpenAIModel(Model):
                         return {"messageStop": {"stopReason": "tool_use"}}
                     case "length":
                         return {"messageStop": {"stopReason": "max_tokens"}}
+                    case "content_filter":
+                        return {"messageStop": {"stopReason": "content_filtered"}}
                     case _:
                         return {"messageStop": {"stopReason": "end_turn"}}
 
@@ -606,14 +608,15 @@ class OpenAIModel(Model):
                 }
 
                 if tokens_details := getattr(event["data"], "prompt_tokens_details", None):
-                    if cached := getattr(tokens_details, "cached_tokens", None):
+                    cached = getattr(tokens_details, "cached_tokens", None)
+                    if isinstance(cached, int):
                         usage_data["cacheReadInputTokens"] = cached
 
                     # Reported first-party from GPT-5.6, where cache writes are billed at 1.25x the
                     # uncached input rate. Dropping it leaves cacheWriteInputTokens structurally absent,
                     # so the write premium is invisible to any cost consumer.
                     cache_write = getattr(tokens_details, "cache_write_tokens", None)
-                    if isinstance(cache_write, int) and cache_write:
+                    if isinstance(cache_write, int):
                         usage_data["cacheWriteInputTokens"] = cache_write
 
                 return {

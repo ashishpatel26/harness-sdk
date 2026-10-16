@@ -76,6 +76,7 @@ const CONTEXT_WINDOW_LIMITS: Record<string, number> = {
   'claude-fable-5-1': 1_000_000,
   'claude-sonnet-5': 1_000_000,
   'claude-sonnet-5-5': 1_000_000,
+  'claude-haiku-5-5': 1_000_000,
   'claude-opus-4-5': 200_000,
   'claude-opus-4-5-20251101': 200_000,
   'claude-opus-4-20250514': 200_000,
@@ -103,6 +104,7 @@ const CONTEXT_WINDOW_LIMITS: Record<string, number> = {
   'anthropic.claude-fable-5-1': 1_000_000,
   'anthropic.claude-sonnet-5': 1_000_000,
   'anthropic.claude-sonnet-5-5': 1_000_000,
+  'anthropic.claude-haiku-5-5': 1_000_000,
   'anthropic.claude-opus-4-5-20251101-v1:0': 200_000,
   'anthropic.claude-opus-4-20250514-v1:0': 200_000,
   'anthropic.claude-opus-4-1-20250805-v1:0': 200_000,
@@ -131,6 +133,9 @@ const CONTEXT_WINDOW_LIMITS: Record<string, number> = {
 
   // OpenAI
   'gpt-6-astra': 1_050_000,
+  'gpt-6.1-sol': 1_050_000,
+  'gpt-6-sol': 1_050_000,
+  'gpt-6-luna': 1_050_000,
   'gpt-5.6': 1_050_000,
   'gpt-5.6-sol': 1_050_000,
   'gpt-5.6-terra': 1_050_000,

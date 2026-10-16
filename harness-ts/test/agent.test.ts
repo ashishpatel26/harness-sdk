@@ -384,17 +384,19 @@ describe('createHarness', () => {
     expect(params.tools).toEqual([{ type: 'web_search' }])
   })
 
-  it('warns with the opt-in but builds when default web_search hits the default bedrock model', async () => {
+  it('logs info, not a warning, and builds when default web_search hits the default bedrock model', async () => {
     const warn = vi.fn()
-    configureLogging({ debug: () => {}, info: () => {}, warn, error: () => {} })
+    const info = vi.fn()
+    configureLogging({ debug: () => {}, info, warn, error: () => {} })
     const agent = await createHarness()
     expect(toolNames(agent)).not.toContain('web_search')
-    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/has no native web search.*web_search: 'exa'/))
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/has no built-in web search.*web-access\/#web_search/))
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('has no built-in web search'))
   })
 
   it('throws when web_search is explicitly selected on an unsupported provider', async () => {
-    await expect(createHarness({ builtinTools: ['read', 'web_search'] })).rejects.toThrow('has no native web search')
-    await expect(createHarness({ builtinTools: { web_search: true } })).rejects.toThrow('has no native web search')
+    await expect(createHarness({ builtinTools: ['read', 'web_search'] })).rejects.toThrow('has no built-in web search')
+    await expect(createHarness({ builtinTools: { web_search: true } })).rejects.toThrow('has no built-in web search')
   })
 
   it('builds the Exa tool for the fallback and warns about the third party', async () => {
@@ -403,7 +405,7 @@ describe('createHarness', () => {
     const agent = await createHarness({ builtinTools: { web_search: 'exa' } })
     expect(toolNames(agent)).toContain('web_search')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('Exa (exa.ai), a third-party service'))
-    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('has no native web search'))
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('has no built-in web search'))
   })
 
   it('lets an explicit Exa selection win over native search', async () => {
@@ -424,9 +426,17 @@ describe('createHarness', () => {
     expect(toolNames(agent)).toContain('web_search')
   })
 
+  it('enables Anthropic native web search from the default set', async () => {
+    const agent = await createHarness({ model: 'anthropic/claude-opus-4-8' })
+    expect(toolNames(agent)).not.toContain('web_search')
+    expect(agent.model.getConfig().anthropicTools).toEqual([
+      { type: 'web_search_20260318', name: 'web_search', allowed_callers: ['direct'] },
+    ])
+  })
+
   it('only offers Bedrock Web Search on GPT-5 and GPT-6 Mantle models', async () => {
-    const warn = vi.fn()
-    configureLogging({ debug: () => {}, info: () => {}, warn, error: () => {} })
+    const info = vi.fn()
+    configureLogging({ debug: () => {}, info, warn: () => {}, error: () => {} })
     let agent = await createHarness({ model: 'bedrock-mantle/openai.gpt-5.6-luna' })
     expect(toolNames(agent)).not.toContain('web_search')
     expect((agent.model.getConfig().params as { tools: unknown }).tools).toEqual([
@@ -435,7 +445,7 @@ describe('createHarness', () => {
     agent = await createHarness({ model: 'bedrock-mantle/openai.gpt-oss-120b-1:0' })
     expect(toolNames(agent)).not.toContain('web_search')
     expect(agent.model.getConfig().params).not.toHaveProperty('tools')
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('has no native web search'))
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('has no built-in web search'))
   })
 
   it('enables web_search when explicitly selected on a supported provider', async () => {
